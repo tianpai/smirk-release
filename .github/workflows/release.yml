@@ -11,19 +11,46 @@ on:
 permissions:
   contents: write
 
+env:
+  SOURCE_REPOSITORY: tianpai/smirk
+
 jobs:
+  validate-source:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check source repository access
+        shell: bash
+        env:
+          PRIVATE_REPO_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          SOURCE_REF: ${{ inputs.branch }}
+        run: |
+          if [ -z "$PRIVATE_REPO_TOKEN" ]; then
+            echo "::error title=Missing PRIVATE_REPO_TOKEN::Add a PRIVATE_REPO_TOKEN repository secret with read access to ${SOURCE_REPOSITORY}."
+            exit 1
+          fi
+
+          auth_header="$(printf 'x-access-token:%s' "$PRIVATE_REPO_TOKEN" | base64 | tr -d '\n')"
+
+          if ! git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth_header}" \
+            ls-remote --exit-code "https://github.com/${SOURCE_REPOSITORY}.git" "refs/heads/${SOURCE_REF}" >/dev/null; then
+            echo "::error title=Cannot access source ref::PRIVATE_REPO_TOKEN cannot read ${SOURCE_REPOSITORY}@${SOURCE_REF}, or that branch does not exist."
+            exit 1
+          fi
+
   build-mac:
+    needs: validate-source
     runs-on: macos-latest
 
     steps:
       - name: Clone private repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
-          repository: tianpai/smirk
+          repository: ${{ env.SOURCE_REPOSITORY }}
           ref: ${{ inputs.branch }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: "npm"
@@ -50,17 +77,18 @@ jobs:
             dist/*.blockmap
 
   build-win:
+    needs: validate-source
     runs-on: windows-latest
 
     steps:
       - name: Clone private repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
-          repository: tianpai/smirk
+          repository: ${{ env.SOURCE_REPOSITORY }}
           ref: ${{ inputs.branch }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: "npm"
@@ -85,24 +113,25 @@ jobs:
 
     steps:
       - name: Clone private repo (for version)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
-          repository: tianpai/smirk
+          repository: ${{ env.SOURCE_REPOSITORY }}
           ref: ${{ inputs.branch }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
 
       - name: Get version from package.json
         id: version
-        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+        run: |
+          echo "version=$(node -p 'require("./package.json").version')" >> "$GITHUB_OUTPUT"
 
       - name: Download mac artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: mac-artifacts
           path: dist/
 
       - name: Download win artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: win-artifacts
           path: dist/
