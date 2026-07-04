@@ -52,13 +52,13 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
           cache: "npm"
 
       - run: npm ci
 
       - name: Build Electron app (macOS)
-        run: npm run build:release:mac
+        run: npm run dist:mac
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
@@ -90,13 +90,13 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
           cache: "npm"
 
       - run: npm ci
 
       - name: Build Electron app (Windows)
-        run: npm run build:release:win
+        run: npm run dist:win
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
